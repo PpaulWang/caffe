@@ -26,7 +26,6 @@
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/util/db.hpp"
 #include "caffe/util/io.hpp"
-#include "caffe/vision_layers.hpp"
 #include "wcq.hpp"
 #include "/usr/include/opencv2/highgui/highgui.hpp"
 
