@@ -1,5 +1,4 @@
 #include<caffe/classifier.hpp>
-#include "DIY_time.h"
 #include <fstream>
 using std::string;
 using namespace caffe;
@@ -32,15 +31,9 @@ int main(int argc, char** argv) {
   while(fin>>file){
       std::cout << "---------- Prediction for "
                 << file << " ----------" << std::endl;
-      TIM.begin();
       cv::Mat img = cv::imread(file, -1);
-      TIM.end();
-      TIM.print_time();
       CHECK(!img.empty()) << "Unable to decode image " << file;
-      TIM.begin();
       std::vector<Prediction> predictions = classifier.Classify(img);
-      TIM.end();
-      TIM.print_time();
       for (int bat = 0; bat < num_features; ++bat) {
           if(beginFlag)
               fout.open((featureNames[bat]+".out").c_str(),std::fstream::app);
