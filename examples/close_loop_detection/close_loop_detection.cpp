@@ -4,15 +4,23 @@
 #include<algorithm>
 #include<string>
 #include<boost/shared_ptr.hpp>
+
+
 using namespace caffe;
 using std::string;
+
+
 typedef std::vector<float> vecf;
 typedef boost::shared_ptr<vecf> vecf_ptr;
 //const int N=100000;
+
+
 const int numberN=10;
 const int L=3;
 const int perIter=300;
 const float inf=1e9;
+
+
 class Picture{
 
 private:
@@ -50,7 +58,7 @@ public:
         toppic.clear();
         canChose.clear();
     }
-    void prepare(){
+    void process(){
         canChose.resize(num,0);
         int len=std::min<int>(numberN,(int)toppic.size());
         partial_sort(toppic.begin(),toppic.begin()+len,toppic.end());
@@ -78,6 +86,9 @@ public:
     vecf_ptr feature(){
         return _feature;
     }
+    int closestPicture(){
+        return topone;
+    }
 };
 typedef boost::shared_ptr<Picture> PicturePtr;
 
@@ -92,6 +103,12 @@ private:
     int _maxPoint;
 
 public:
+    PicturePtr pictureAt(int idx){
+        return pictures[idx];
+    }
+    size_t size(){
+        return pictures.size();
+    }
 
     Features(){
         pictures.clear();
@@ -137,7 +154,6 @@ class CloseLoopDetecter{
 private:
     boost::shared_ptr<Classifier> classifer;
     boost::shared_ptr<Features> features;
-    std::vector<PicturePtr> pictures;
 
 
 public:
@@ -147,18 +163,18 @@ public:
                     new Classifier(cnnNetName,cnnNetParameter,meanFile));
         features=boost::shared_ptr<Features>(new Features());
     }
-    void get_closest_point(vecf_ptr featurePtr){
+    int get_closest_point(vecf_ptr featurePtr){
 
-        int num=pictures.size();
+        int num=features->size();
         features->add(PicturePtr(new Picture(num,featurePtr)));
 
         int delta=80;
         for(int j=0;j+delta<num;j++){
-            if(num&&pictures[num-1]->CANCHOSE(j))
-            pictures[num]->push(j,features->get_dist(num,j));
+            if(num&&features->pictureAt(num-1)->CANCHOSE(j))
+            features->pictureAt(num)->push(j,features->get_dist(num,j));
         }
-        pictures[num]->prepare();
-
+        features->pictureAt(num)->process();
+        return features->pictureAt(num)->closestPicture();
     }
 
 };
