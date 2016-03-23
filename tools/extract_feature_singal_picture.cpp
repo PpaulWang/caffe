@@ -70,4 +70,5 @@ int extract_feature_singal_picture(int argc,char** argv){
 
   }
   fin.close();
+  return 0;
 }
