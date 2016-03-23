@@ -8,9 +8,10 @@ using namespace caffe;
 using std::string;
 typedef std::vector<float> vecf;
 typedef boost::shared_ptr<vecf> vecf_ptr;
-const int N=10;
-const int numberN=10000;
-const int L=100;
+//const int N=100000;
+const int numberN=10;
+const int L=3;
+const int perIter=300;
 const float inf=1e9;
 class Picture{
 
@@ -37,46 +38,48 @@ private:
 
 
     int topone;
+    int num;
     double dist;
-    bool canChose[N];
+    std::vector<bool> canChose;
     std::vector<topPic> toppic;
 
 public:
     Picture(){}
-    Picture(int topone):topone(topone){}
+    Picture(int num):num(num){
+        toppic.clear();
+        canChose.clear();
+    }
     void prepare(){
-        memset(canChose,0,sizeof(canChose));
+        canChose.resize(num,0);
         int len=std::min<int>(numberN,(int)toppic.size());
         partial_sort(toppic.begin(),toppic.begin()+len,toppic.end());
-
-
         for(int i=0;i<len;i++){
             SET(toppic[i].ID()-L,toppic[i].ID()+L);
         }
         topone=toppic[0].ID();
         dist=toppic[0].dis();
-        if(toppic.size()<numberN){
-            memset(canChose,1,sizeof(canChose));
+        if(toppic.size()<numberN||num%perIter==0){
+            canChose.resize(num,1);
         }
     }
     void SET(int l,int r){
         l=std::max(0,l);
-        r=std::min(N-1,r);
-        memset(canChose+l,1,sizeof(bool)*(r-l+1));
+        r=std::min(num-1,r);
+        for(int i=l;i<=r;i++)canChose[i]=1;
     }
     void push(int _id,float _dist){
         toppic.push_back(topPic(_id,_dist));
     }
     bool CANCHOSE(int id){
+        if(id>=num)return false;
         return canChose[id];
-    }
-    void init(){
-        toppic.clear();
     }
 };
 typedef boost::shared_ptr<Picture> PicturePtr;
-const int oula=0;
-const int manhadun=1;
+
+
+bool oula = true;
+
 class Features{
 public:
 
@@ -87,7 +90,7 @@ public:
     int maxPoint(){return _maxPoint;}
     float get_dist(int x,int y){
         if(x==_maxPoint||y==_maxPoint)return inf;
-        if(distModel==oula)return calculate_oula(x,y);
+        if(oula)return calculate_oula(x,y);
         return calculate_manhadun(x,y);
     }
     float calculate_oula(int x,int y){
@@ -112,54 +115,42 @@ public:
     void push_back(vecf_ptr tp){
         features.push_back(tp);
     }
-    void init(){
-        features.clear();
-    }
 
 private:
 
     std::vector<vecf_ptr> features;
     int _maxPoint;
-    int distModel;
+
 };
 
 class CloseLoopDetecter{
 public:
     CloseLoopDetecter(){}
     CloseLoopDetecter(string cnnNetName,string meanFile,string cnnNetParameter){
-        classifer=boost::shared_ptr<Classifier>(new Classifier(cnnNetName,cnnNetParameter,meanFile));
-        features.init();
+        classifer=boost::shared_ptr<Classifier>(
+                    new Classifier(cnnNetName,cnnNetParameter,meanFile));
+        features=boost::shared_ptr<Features>(new Features());
     }
-
-private:
-    boost::shared_ptr<Classifier> classifer;
-    Features features;
-    std::vector<PicturePtr> pictures;
     void get_closest_point(vecf_ptr featurePtr){
 
-
         int num=pictures.size();
-        features.push_back(featurePtr);
-        pictures.push_back(PicturePtr(new Picture()));
-        pictures[num]->init();
-        pictures[num]->push(features.maxPoint(),inf);
+        features->push_back(featurePtr);
+        pictures.push_back(PicturePtr(new Picture(num)));
+        pictures[num]->push(features->maxPoint(),inf);
+
         int delta=80;
-
-
-        if(num%300==0){
-            for(int j=0;j+delta<num;j++){
-                pictures[num]->push(j,features.get_dist(num,j));
-            }
-        }
-        else{
-            for(int j=0;j+delta<num;j++){
-                if(pictures[num-1]->CANCHOSE(j))
-                pictures[num]->push(j,features.get_dist(num,j));
-            }
+        for(int j=0;j+delta<num;j++){
+            if(pictures[num-1]->CANCHOSE(j))
+            pictures[num]->push(j,features->get_dist(num,j));
         }
         pictures[num]->prepare();
 
     }
+private:
+    boost::shared_ptr<Classifier> classifer;
+    boost::shared_ptr<Features> features;
+    std::vector<PicturePtr> pictures;
+
 };
 
 int main(){
