@@ -42,10 +42,11 @@ private:
     double dist;
     std::vector<bool> canChose;
     std::vector<topPic> toppic;
+    vecf_ptr _feature;
 
 public:
     Picture(){}
-    Picture(int num):num(num){
+    Picture(int num,vecf_ptr feature):num(num),_feature(feature){
         toppic.clear();
         canChose.clear();
     }
@@ -74,6 +75,9 @@ public:
         if(id>=num)return false;
         return canChose[id];
     }
+    vecf_ptr feature(){
+        return _feature;
+    }
 };
 typedef boost::shared_ptr<Picture> PicturePtr;
 
@@ -81,10 +85,16 @@ typedef boost::shared_ptr<Picture> PicturePtr;
 bool oula = true;
 
 class Features{
+
+private:
+
+    std::vector<PicturePtr> pictures;
+    int _maxPoint;
+
 public:
 
     Features(){
-        features.clear();
+        pictures.clear();
         _maxPoint=-1;
     }
     int maxPoint(){return _maxPoint;}
@@ -94,36 +104,42 @@ public:
         return calculate_manhadun(x,y);
     }
     float calculate_oula(int x,int y){
-        int ret=0;
-        int feature_len=features[0]->size();
+        float ret=0;
+        vecf_ptr featureX=pictures[x]->feature();
+        vecf_ptr featureY=pictures[y]->feature();
+        int feature_len=featureX->size();
         for(int i=0;i<feature_len;i++){
-            int delta=features[x]->at(x)-features[y]->at(y);
+            float delta=featureX->at(x)-featureY->at(y);
             ret+=delta*delta;
         }
         return sqrt(ret);
     }
 
     float calculate_manhadun(int x,int y){
-        int ret=0;
-        int feature_len=features[0]->size();
+        float ret=0;
+        vecf_ptr featureX=pictures[x]->feature();
+        vecf_ptr featureY=pictures[y]->feature();
+        int feature_len=featureX->size();
         for(int i=0;i<feature_len;i++){
-            int delta=features[x]->at(x)-features[y]->at(y);
+            float delta=featureX->at(x)-featureY->at(y);
             ret+=fabs(delta);
         }
         return ret;
     }
-    void push_back(vecf_ptr tp){
-        features.push_back(tp);
+    void add(PicturePtr tp){
+        tp->push(_maxPoint,inf);
+        pictures.push_back(tp);
     }
-
-private:
-
-    std::vector<vecf_ptr> features;
-    int _maxPoint;
 
 };
 
 class CloseLoopDetecter{
+private:
+    boost::shared_ptr<Classifier> classifer;
+    boost::shared_ptr<Features> features;
+    std::vector<PicturePtr> pictures;
+
+
 public:
     CloseLoopDetecter(){}
     CloseLoopDetecter(string cnnNetName,string meanFile,string cnnNetParameter){
@@ -134,27 +150,21 @@ public:
     void get_closest_point(vecf_ptr featurePtr){
 
         int num=pictures.size();
-        features->push_back(featurePtr);
-        pictures.push_back(PicturePtr(new Picture(num)));
-        pictures[num]->push(features->maxPoint(),inf);
+        features->add(PicturePtr(new Picture(num,featurePtr)));
 
         int delta=80;
         for(int j=0;j+delta<num;j++){
-            if(pictures[num-1]->CANCHOSE(j))
+            if(num&&pictures[num-1]->CANCHOSE(j))
             pictures[num]->push(j,features->get_dist(num,j));
         }
         pictures[num]->prepare();
 
     }
-private:
-    boost::shared_ptr<Classifier> classifer;
-    boost::shared_ptr<Features> features;
-    std::vector<PicturePtr> pictures;
 
 };
 
 int main(){
-	
+    boost::shared_ptr<CloseLoopDetecter> closeLoopDetecter(new CloseLoopDetecter());
 
 	return 0;
 }
