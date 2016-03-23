@@ -2,7 +2,11 @@
 #include <fstream>
 using std::string;
 using namespace caffe;
+int extract_feature_singal_picture(int ,char** );
 int main(int argc, char** argv) {
+    return extract_feature_singal_picture(argc,argv);
+}
+int extract_feature_singal_picture(int argc,char** argv){
   if (argc < 5) {
     std::cerr << "Usage: " << argv[0]
               << " deploy.prototxt network.caffemodel"
@@ -26,7 +30,6 @@ int main(int argc, char** argv) {
   int num_features=featureNames.size();
   std::vector<int> image_indices(num_features,0);
   bool beginFlag=false;
-  TimeMachine TIM;
   std::ofstream fout;
   while(fin>>file){
       std::cout << "---------- Prediction for "

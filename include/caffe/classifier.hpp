@@ -118,7 +118,6 @@ std::vector<Prediction> Classifier::Classify(const cv::Mat& img, int N) {
 
   std::vector<int> maxN = Argmax(output, N);
   std::vector<Prediction> predictions;
-
   return predictions;
 }
 
