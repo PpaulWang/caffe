@@ -1,8 +1,10 @@
 #include<caffe/classifier.hpp>
 #include<iostream>
+#include<fstream>
 #include<cstring>
 #include<algorithm>
 #include<string>
+#include<map>
 #include<boost/shared_ptr.hpp>
 
 
@@ -11,7 +13,7 @@ using std::string;
 
 
 typedef std::vector<float> vecf;
-typedef boost::shared_ptr<vecf> vecf_ptr;
+typedef boost::shared_ptr<vecf> vecfPtr;
 //const int N=100000;
 
 
@@ -26,18 +28,18 @@ class Picture{
 private:
 
 
-    class topPic{
+    class pictureDistanceId{
     private:
-        int id;
+        int _id;
         float dist;
     public:
-        topPic(){}
-        topPic(int id,float dist):id(id),dist(dist){}
-        bool operator <(const topPic & topPi)const{
+        pictureDistanceId(){}
+        pictureDistanceId(int id,float dist):_id(id),dist(dist){}
+        bool operator <(const pictureDistanceId & topPi)const{
             return dist<topPi.dist;
         }
-        int ID(){
-            return id;
+        int id(){
+            return _id;
         }
         float dis(){
             return dist;
@@ -45,49 +47,52 @@ private:
     };
 
 
-    int topone;
+    int closestPictureId;
     int num;
-    double dist;
-    std::vector<bool> canChose;
-    std::vector<topPic> toppic;
-    vecf_ptr _feature;
+    float dist;
+    std::vector<bool> _canChose;
+    std::vector<pictureDistanceId> pictureDisId;
+    vecfPtr _feature;
 
 public:
     Picture(){}
-    Picture(int num,vecf_ptr feature):num(num),_feature(feature){
-        toppic.clear();
-        canChose.clear();
+    Picture(int num,vecfPtr feature):num(num),_feature(feature){
+        pictureDisId.clear();
+        _canChose.clear();
     }
     void process(){
-        canChose.resize(num,0);
-        int len=std::min<int>(numberN,(int)toppic.size());
-        partial_sort(toppic.begin(),toppic.begin()+len,toppic.end());
+        _canChose.resize(num,0);
+        int len=std::min<int>(numberN,(int)pictureDisId.size());
+        partial_sort(pictureDisId.begin(),pictureDisId.begin()+len,pictureDisId.end());
         for(int i=0;i<len;i++){
-            SET(toppic[i].ID()-L,toppic[i].ID()+L);
+            setCanChose(pictureDisId[i].id()-L,pictureDisId[i].id()+L);
         }
-        topone=toppic[0].ID();
-        dist=toppic[0].dis();
-        if(toppic.size()<numberN||num%perIter==0){
-            canChose.resize(num,1);
+        closestPictureId=pictureDisId[0].id();
+        dist=pictureDisId[0].dis();
+        if(pictureDisId.size()<numberN||num%perIter==0){
+            _canChose.resize(num,1);
         }
     }
-    void SET(int l,int r){
+    void setCanChose(int l,int r){
         l=std::max(0,l);
         r=std::min(num-1,r);
-        for(int i=l;i<=r;i++)canChose[i]=1;
+        for(int i=l;i<=r;i++)_canChose[i]=1;
     }
     void push(int _id,float _dist){
-        toppic.push_back(topPic(_id,_dist));
+        pictureDisId.push_back(pictureDistanceId(_id,_dist));
     }
-    bool CANCHOSE(int id){
+    bool canChose(int id){
         if(id>=num)return false;
-        return canChose[id];
+        return _canChose[id];
     }
-    vecf_ptr feature(){
+    vecfPtr feature(){
         return _feature;
     }
     int closestPicture(){
-        return topone;
+        return closestPictureId;
+    }
+    float dis(){
+        return dist;
     }
 };
 typedef boost::shared_ptr<Picture> PicturePtr;
@@ -95,7 +100,7 @@ typedef boost::shared_ptr<Picture> PicturePtr;
 
 bool oula = true;
 
-class Features{
+class Pictures{
 
 private:
 
@@ -110,7 +115,7 @@ public:
         return pictures.size();
     }
 
-    Features(){
+    Pictures(){
         pictures.clear();
         _maxPoint=-1;
     }
@@ -122,8 +127,8 @@ public:
     }
     float calculate_oula(int x,int y){
         float ret=0;
-        vecf_ptr featureX=pictures[x]->feature();
-        vecf_ptr featureY=pictures[y]->feature();
+        vecfPtr featureX=pictures[x]->feature();
+        vecfPtr featureY=pictures[y]->feature();
         int feature_len=featureX->size();
         for(int i=0;i<feature_len;i++){
             float delta=featureX->at(x)-featureY->at(y);
@@ -134,8 +139,8 @@ public:
 
     float calculate_manhadun(int x,int y){
         float ret=0;
-        vecf_ptr featureX=pictures[x]->feature();
-        vecf_ptr featureY=pictures[y]->feature();
+        vecfPtr featureX=pictures[x]->feature();
+        vecfPtr featureY=pictures[y]->feature();
         int feature_len=featureX->size();
         for(int i=0;i<feature_len;i++){
             float delta=featureX->at(x)-featureY->at(y);
@@ -153,7 +158,7 @@ public:
 class CloseLoopDetecter{
 private:
     boost::shared_ptr<Classifier> classifer;
-    boost::shared_ptr<Features> features;
+    boost::shared_ptr<Pictures> pictures;
 
 
 public:
@@ -161,27 +166,63 @@ public:
     CloseLoopDetecter(string cnnNetName,string meanFile,string cnnNetParameter){
         classifer=boost::shared_ptr<Classifier>(
                     new Classifier(cnnNetName,cnnNetParameter,meanFile));
-        features=boost::shared_ptr<Features>(new Features());
+        pictures=boost::shared_ptr<Pictures>(new Pictures());
     }
-    int get_closest_point(vecf_ptr featurePtr){
-
-        int num=features->size();
-        features->add(PicturePtr(new Picture(num,featurePtr)));
+    int getClosestPicture(int num){
 
         int delta=80;
         for(int j=0;j+delta<num;j++){
-            if(num&&features->pictureAt(num-1)->CANCHOSE(j))
-            features->pictureAt(num)->push(j,features->get_dist(num,j));
+            if(num&&pictures->pictureAt(num-1)->canChose(j))
+            pictures->pictureAt(num)->push(j,pictures->get_dist(num,j));
         }
-        features->pictureAt(num)->process();
-        return features->pictureAt(num)->closestPicture();
+        pictures->pictureAt(num)->process();
+        return pictures->pictureAt(num)->closestPicture();
+
+    }
+    std::pair<int,float> getClosePoint(cv::Mat img){
+        classifer->Classify(img);
+        int num=pictures->size();
+        pictures->add(PicturePtr(new Picture(num,classifer->getFeature("fc6"))));
+        int ret_first=getClosestPicture(num);
+        float ret_second=pictures->pictureAt(ret_first)->dis();
+        return std::make_pair(ret_first,ret_second);
     }
 
 };
 
-int main(){
-    boost::shared_ptr<CloseLoopDetecter> closeLoopDetecter(new CloseLoopDetecter());
+int main(int argc,char** argv){
+    if(argc<5){
+        std::cerr<<"usage: use "<<argv[0]<<
+                   " modelprototxt parameterfile meanfile filelist storepath"<<std::endl;
+        return -1;
+    }
+    string ModelFile(argv[1]);
+    string ModelParameter(argv[2]);
+    string MeanFile(argv[3]);
+    string FileList(argv[4]);
+    std::ofstream fout(argv[5]);
+    boost::shared_ptr<CloseLoopDetecter> closeLoopDetecter(
+                new CloseLoopDetecter(ModelFile,ModelParameter,MeanFile));
+    std::ifstream fin(FileList.c_str());
 
+    string fileName;
+    std::vector<string> fileNames;
+    std::map<string,int> file2Id;
+    while(fin>>fileName){
+        fileNames.push_back(fileName);
+        file2Id[fileName]=fileNames.size()-1;
+        cv::Mat img=cv::imread(fileName,-1);
+        std::pair<int,float> closePictureInfo=closeLoopDetecter->getClosePoint(img);
+        if(~closePictureInfo.first)
+            fout<<fileName<<" "<<fileNames.size()-1<<" "<<
+                  fileNames[closePictureInfo.first]<<" "<<closePictureInfo.second<<
+                  " "<<closePictureInfo.second<<std::endl;
+        else
+            fout<<fileName<<" "<<fileNames.size()-1<<" "<<
+                  "None -1 "<<inf<<std::endl;
+    }
+    fin.close();
+    fout.close();
 	return 0;
 }
 
