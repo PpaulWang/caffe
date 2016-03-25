@@ -18,7 +18,7 @@ typedef boost::shared_ptr<vecf> vecfPtr;
 
 
 const int numberN=10;
-const int L=3;
+const int L=30;
 const int perIter=300;
 const float inf=1e9;
 
@@ -70,7 +70,7 @@ public:
         closestPictureId=pictureDisId[0].id();
         dist=pictureDisId[0].dis();
         if(pictureDisId.size()<numberN||num%perIter==0){
-            _canChose.resize(num,1);
+            setCanChose(0,num-1);
         }
     }
     void setCanChose(int l,int r){
@@ -130,8 +130,9 @@ public:
         vecfPtr featureX=pictures[x]->feature();
         vecfPtr featureY=pictures[y]->feature();
         int feature_len=featureX->size();
+        CHECK_EQ(featureX->size(),featureY->size());
         for(int i=0;i<feature_len;i++){
-            float delta=featureX->at(x)-featureY->at(y);
+            float delta=featureX->at(i)-featureY->at(i);
             ret+=delta*delta;
         }
         return sqrt(ret);
@@ -163,7 +164,7 @@ private:
 
 public:
     CloseLoopDetecter(){}
-    CloseLoopDetecter(string cnnNetName,string meanFile,string cnnNetParameter){
+    CloseLoopDetecter(string cnnNetName,string cnnNetParameter,string meanFile){
         classifer=boost::shared_ptr<Classifier>(
                     new Classifier(cnnNetName,cnnNetParameter,meanFile));
         pictures=boost::shared_ptr<Pictures>(new Pictures());
@@ -184,6 +185,9 @@ public:
         int num=pictures->size();
         pictures->add(PicturePtr(new Picture(num,classifer->getFeature("fc6"))));
         int ret_first=getClosestPicture(num);
+        if(ret_first==-1){
+            return std::make_pair<int,float>(-1,inf);
+        }
         float ret_second=pictures->pictureAt(ret_first)->dis();
         return std::make_pair(ret_first,ret_second);
     }
@@ -196,6 +200,8 @@ int main(int argc,char** argv){
                    " modelprototxt parameterfile meanfile filelist storepath"<<std::endl;
         return -1;
     }
+    ::google::InitGoogleLogging(argv[0]);
+
     string ModelFile(argv[1]);
     string ModelParameter(argv[2]);
     string MeanFile(argv[3]);
@@ -209,13 +215,15 @@ int main(int argc,char** argv){
     std::vector<string> fileNames;
     std::map<string,int> file2Id;
     while(fin>>fileName){
+
         fileNames.push_back(fileName);
         file2Id[fileName]=fileNames.size()-1;
         cv::Mat img=cv::imread(fileName,-1);
         std::pair<int,float> closePictureInfo=closeLoopDetecter->getClosePoint(img);
+        std::cout<<fileName<<" "<<fileNames.size()-1<<" "<<closePictureInfo.first<<std::endl;
         if(~closePictureInfo.first)
             fout<<fileName<<" "<<fileNames.size()-1<<" "<<
-                  fileNames[closePictureInfo.first]<<" "<<closePictureInfo.second<<
+                  fileNames[closePictureInfo.first]<<" "<<closePictureInfo.first<<
                   " "<<closePictureInfo.second<<std::endl;
         else
             fout<<fileName<<" "<<fileNames.size()-1<<" "<<
