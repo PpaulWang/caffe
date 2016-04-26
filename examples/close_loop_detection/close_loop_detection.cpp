@@ -1,4 +1,4 @@
-#include<caffe/classifier.hpp>
+#include<caffe/feature_extractor.hpp>
 #include<iostream>
 #include<fstream>
 #include<cstring>
@@ -158,15 +158,15 @@ public:
 
 class CloseLoopDetecter{
 private:
-    boost::shared_ptr<Classifier> classifer;
+    boost::shared_ptr<featureExtractor> classifer;
     boost::shared_ptr<Pictures> pictures;
 
 
 public:
     CloseLoopDetecter(){}
     CloseLoopDetecter(string cnnNetName,string cnnNetParameter,string meanFile){
-        classifer=boost::shared_ptr<Classifier>(
-                    new Classifier(cnnNetName,cnnNetParameter,meanFile));
+        classifer=boost::shared_ptr<featureExtractor>(
+                    new featureExtractor(cnnNetName,cnnNetParameter,meanFile));
         pictures=boost::shared_ptr<Pictures>(new Pictures());
     }
     int getClosestPicture(int num){
@@ -181,7 +181,7 @@ public:
 
     }
     std::pair<int,float> getClosePoint(cv::Mat img){
-        classifer->Classify(img);
+        classifer->Forward(img);
         int num=pictures->size();
         pictures->add(PicturePtr(new Picture(num,classifer->getFeature("fc6"))));
         int ret_first=getClosestPicture(num);
