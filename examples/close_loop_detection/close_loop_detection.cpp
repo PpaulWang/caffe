@@ -99,67 +99,48 @@ typedef boost::shared_ptr<Picture> PicturePtr;
 
 
 bool oula = true;
-
-class Pictures{
-
-private:
-
-    std::vector<PicturePtr> pictures;
-    int _maxPoint;
-
-public:
-    PicturePtr pictureAt(int idx){
-        return pictures[idx];
+float calculate_oula(vecfPtr featureX,vecfPtr featureY){
+    float ret=0;
+    int feature_len=featureX->size();
+    CHECK_EQ(featureX->size(),featureY->size());
+    for(int i=0;i<feature_len;i++){
+        float delta=featureX->at(i)-featureY->at(i);
+        ret+=delta*delta;
     }
-    size_t size(){
-        return pictures.size();
-    }
+    return sqrt(ret);
+}
 
-    Pictures(){
-        pictures.clear();
-        _maxPoint=-1;
+float calculate_manhadun(vecfPtr featureX,vecfPtr featureY){
+    float ret=0;
+    int feature_len=featureX->size();
+    for(int i=0;i<feature_len;i++){
+        float delta=featureX->at(i)-featureY->at(i);
+        ret+=fabs(delta);
     }
-    int maxPoint(){return _maxPoint;}
-    float get_dist(int x,int y){
-        if(x==_maxPoint||y==_maxPoint)return inf;
-        if(oula)return calculate_oula(x,y);
-        return calculate_manhadun(x,y);
-    }
-    float calculate_oula(int x,int y){
-        float ret=0;
-        vecfPtr featureX=pictures[x]->feature();
-        vecfPtr featureY=pictures[y]->feature();
-        int feature_len=featureX->size();
-        CHECK_EQ(featureX->size(),featureY->size());
-        for(int i=0;i<feature_len;i++){
-            float delta=featureX->at(i)-featureY->at(i);
-            ret+=delta*delta;
-        }
-        return sqrt(ret);
-    }
+    return ret;
+}
 
-    float calculate_manhadun(int x,int y){
-        float ret=0;
-        vecfPtr featureX=pictures[x]->feature();
-        vecfPtr featureY=pictures[y]->feature();
-        int feature_len=featureX->size();
-        for(int i=0;i<feature_len;i++){
-            float delta=featureX->at(x)-featureY->at(y);
-            ret+=fabs(delta);
-        }
-        return ret;
-    }
-    void add(PicturePtr tp){
-        tp->push(_maxPoint,inf);
-        pictures.push_back(tp);
-    }
-
-};
 
 class CloseLoopDetecter{
 private:
     boost::shared_ptr<featureExtractor> classifer;
-    boost::shared_ptr<Pictures> pictures;
+
+    std::vector<PicturePtr> pictures;
+
+private:
+    int maxPoint(){return -1;}
+    float get_dist(int x,int y){
+        if(x==maxPoint()||y==maxPoint())return inf;
+        vecfPtr featureX=pictures[x]->feature();
+        vecfPtr featureY=pictures[y]->feature();
+        if(oula)return calculate_oula(featureX,featureY);
+        return calculate_manhadun(featureX,featureY);
+    }
+
+    void add(PicturePtr tp){
+        tp->push(maxPoint(),inf);
+        pictures.push_back(tp);
+    }
 
 
 public:
@@ -167,28 +148,28 @@ public:
     CloseLoopDetecter(string cnnNetName,string cnnNetParameter,string meanFile){
         classifer=boost::shared_ptr<featureExtractor>(
                     new featureExtractor(cnnNetName,cnnNetParameter,meanFile));
-        pictures=boost::shared_ptr<Pictures>(new Pictures());
+        pictures.clear();
     }
     int getClosestPicture(int num){
 
         int delta=80;
         for(int j=0;j+delta<num;j++){
-            if(num&&pictures->pictureAt(num-1)->canChose(j))
-            pictures->pictureAt(num)->push(j,pictures->get_dist(num,j));
+            if(num&&pictures[num-1]->canChose(j))
+            pictures[num]->push(j,get_dist(num,j));
         }
-        pictures->pictureAt(num)->process();
-        return pictures->pictureAt(num)->closestPicture();
+        pictures[num]->process();
+        return pictures[num]->closestPicture();
 
     }
     std::pair<int,float> getClosePoint(cv::Mat img){
         classifer->Forward(img);
-        int num=pictures->size();
-        pictures->add(PicturePtr(new Picture(num,classifer->getFeature("fc6"))));
+        int num=pictures.size();
+        add(PicturePtr(new Picture(num,classifer->getFeature("fc6"))));
         int ret_first=getClosestPicture(num);
         if(ret_first==-1){
             return std::make_pair<int,float>(-1,inf);
         }
-        float ret_second=pictures->pictureAt(ret_first)->dis();
+        float ret_second=pictures[ret_first]->dis();
         return std::make_pair(ret_first,ret_second);
     }
 

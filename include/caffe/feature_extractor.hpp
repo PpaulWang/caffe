@@ -73,18 +73,20 @@ const boost::shared_ptr<std::vector<float> > featureExtractor::getFeature(std::s
 
     boost::shared_ptr<Blob<float> > feature_blob=net_->blob_by_name(layerName);
 
-    boost::shared_ptr<std::vector<float> > ret(new std::vector<float>(0));
+    boost::shared_ptr<std::vector<float> > ret(new std::vector<float>());
 
     ret->clear();
     int batch_size = feature_blob->num();
     int Height=feature_blob->height();
     int Weith=feature_blob->width();
     int Channels=feature_blob->channels();
+    ret->resize(batch_size*Channels*Height*Weith);
+    int tot=0;
     for (int n = 0; n < batch_size; ++n) {
         for(int c=0;c<Channels;c++){
             for(int h=0;h<Height;h++){
                 for(int w=0;w<Weith;w++){
-                    ret->push_back(feature_blob->data_at(n,c,h,w));
+                    ret->at(tot++)=(feature_blob->data_at(n,c,h,w));
                 }
             }
         }
